@@ -19,7 +19,7 @@ attributeNames={'Offset', attributeNames{1:end}};
 % Crossvalidation
 % Create crossvalidation partition for evaluation of performance of optimal
 % model
-K = 3;
+K = 10;
 CV = cvpartition(N, 'Kfold', K);
 
 % Values of lambda
