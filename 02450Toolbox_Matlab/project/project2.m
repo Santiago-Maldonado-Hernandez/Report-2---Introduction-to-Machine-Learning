@@ -10,15 +10,19 @@ data_ini;
 X(:, end) = [];
 
 %% Part a:
-% Crossvalidation K-fold
-K = 10;
 % include an additional attribute corresponding to the offset
 [N, M] = size(X);
 X=[ones(size(X,1),1) X];
 M=M+1;
 attributeNames={'Offset', attributeNames{1:end}};
+
+% Number of folds in the K-fold crossvalidation 
+K = 10;
+CV = cvpartition(N, 'Kfold', K);
+
 % Values of lambda
 lambda_tmp=10.^(-5:8);
+
 % Initialize variables
 T=length(lambda_tmp);
 Error_train = nan(K,1);
@@ -26,8 +30,10 @@ Error_test = nan(K,1);
 w = nan(M,T,K);
 lambda_opt = nan(K,1);
 w_rlr = nan(M,K);
-CV = cvpartition(size(X,1), 'Kfold', K);
+
 for k=1:K
+    fprintf('Crossvalidation fold %d/%d\n', k, K);
+    % Extract training and test set
     X_train = X(CV.training(k), :);
     y_train = y(CV.training(k));
     X_test = X(CV.test(k), :);
@@ -49,7 +55,7 @@ end
 
 % Select optimal value of lambda
 [val,ind_opt]=min(sum(Error_test,2)/sum(CV.TestSize));
-lambda_opt(k)=lambda_tmp(ind_opt);    
+lambda_opt=lambda_tmp(ind_opt);    
 
 % Display result for last cross-validation fold (remove if statement to
 % show all folds)
