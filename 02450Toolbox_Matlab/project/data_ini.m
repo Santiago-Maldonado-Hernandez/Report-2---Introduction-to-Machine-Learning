@@ -10,7 +10,7 @@ fclose(FID);
 file_path = fullfile(cdir,'../project/Data_abalone_dot.csv');
 abalone_table = readtable(file_path);
 X = table2array(abalone_table(1:end, 2:9)); % Extracted only some data
-X = rmoutliers(X); %remove outliers
+%X = rmoutliers(X); %remove outliers123
 % Table is now stored in Matlab
 [NUMERIC, TXT, RAW] = xlsread(fullfile(cdir,'../project/Data_abalone.csv'));
 abalone_table = readtable(file_path);
