@@ -9,7 +9,7 @@ data_ini;
 % corresponds with that attribute. 
 X(:, end) = [];
 
-%% Part a:
+%% Part a: 1
 % include an additional attribute corresponding to the offset
 [N, M] = size(X);
 X=[ones(size(X,1),1) X];
@@ -50,46 +50,48 @@ for k=1:K
         % Evaluate training and test performance
         Error_train(t,k) = sum((y_train-X_train*w(:,t,k)).^2);
         Error_test(t,k) = sum((y_test-X_test*w(:,t,k)).^2);
+    end   
+
+    % Select optimal value of lambda
+    [val,ind_opt]=min(sum(Error_test,2)/sum(CV.TestSize));
+    lambda_opt(k)=lambda_tmp(ind_opt);    
+
+    % Display result for last cross-validation fold (remove if statement to
+    % show all folds)
+    if k == K
+        mfig(sprintf('Regularized Solution for linear regression',k));    
+        subplot(1,2,1); % Plot error criterion
+        semilogx(lambda_tmp, mean(w(2:end,:,:),3),'.-');
+        % For a more tidy plot, we omit the attribute names, but you can
+        % inspect them using:
+        %legend(attributeNames(2:end), 'location', 'best');
+        xlabel('\lambda');
+        ylabel('Coefficient Values');
+        title('Values of w');
+        subplot(1,2,2); % Plot error        
+        loglog(lambda_tmp,[sum(Error_train,2)/sum(CV.TrainSize) sum(Error_test,2)/sum(CV.TestSize)],'.-');   
+        legend({'Training Error as function of lambda','Test Error as function of lambda'},'Location','SouthEast');
+        title(['Optimal value of lambda: 1e' num2str(log10(lambda_opt(k)))]);
+        xlabel('\lambda');           
+        drawnow;    
     end
-end    
 
-% Select optimal value of lambda
-[val,ind_opt]=min(sum(Error_test,2)/sum(CV.TestSize));
-lambda_opt=lambda_tmp(ind_opt);    
+    X_train_std = X_train;
+    X_test_std = X_test;
 
-% Display result for last cross-validation fold (remove if statement to
-% show all folds)
-if k == K
-    mfig(sprintf('Regularized Solution for linear regression',k));    
-    subplot(1,2,1); % Plot error criterion
-    semilogx(lambda_tmp, mean(w(2:end,:,:),3),'.-');
-    % For a more tidy plot, we omit the attribute names, but you can
-    % inspect them using:
-    %legend(attributeNames(2:end), 'location', 'best');
-    xlabel('\lambda');
-    ylabel('Coefficient Values');
-    title('Values of w');
-    subplot(1,2,2); % Plot error        
-    loglog(lambda_tmp,[sum(Error_train,2)/sum(CV.TrainSize) sum(Error_test,2)/sum(CV.TestSize)],'.-');   
-    legend({'Training Error as function of lambda','Test Error as function of lambda'},'Location','SouthEast');
-    title(['Optimal value of lambda: 1e' num2str(log10(lambda_opt(k)))]);
-    xlabel('\lambda');           
-    drawnow;    
+    % Estimate w for the optimal value of lambda
+    Xty=(X_train_std'*y_train);
+    XtX=X_train_std'*X_train_std;
+
+    regularization = lambda_opt(k) * eye(M);
+    regularization(1,1) = 0; 
+    w_rlr(:,k) = (XtX+regularization)\Xty;
 end
 
-X_train_std = X_train;
-X_test_std = X_test;
-
-% Estimate w for the optimal value of lambda
-Xty=(X_train_std'*y_train);
-XtX=X_train_std'*X_train_std;
-
-regularization = lambda_opt(k) * eye(M);
-regularization(1,1) = 0; 
-w_rlr(:,k) = (XtX+regularization)\Xty;
+disp('The program is in pause, click the space bar to continue');
 pause;
 
-%% Regularization parameter lambda for linear regression
+%% Part b: 2-Level Cross-Validation
 % include an additional attribute corresponding to the offset
 [N, M] = size(X);
 X=[ones(size(X,1),1) X];
