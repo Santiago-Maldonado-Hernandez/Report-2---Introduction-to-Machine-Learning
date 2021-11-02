@@ -24,7 +24,7 @@ classNames = unique(classLabels);
 
 % Stadardize de data by substracting the mean and diving by the standard
 % deviation. 
-X = bsxfun(@minus, X, mean(X));
-X = bsxfun(@times, X, 1./std(X));
+%X = bsxfun(@minus, X, mean(X));
+%X = bsxfun(@times, X, 1./std(X));
 % Removing the outliers. 
 X = rmoutliers(X);

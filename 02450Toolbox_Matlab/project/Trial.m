@@ -9,107 +9,16 @@ data_ini;
 % corresponds with that attribute. 
 X(:, end) = [];
 % Set the lenght as the output 'y' that we want to predict and extract it
-% from the dta matrix 'X'
+% from the data matrix 'X'
 y = X(:, 1);
 X(:, 1) = [];
 
-%% Part a: 1
+%% Regularized Linear regression 
 % include an additional attribute corresponding to the offset
 [N, M] = size(X);
 X=[ones(size(X,1),1) X];
 M=M+1;
 attributeNames={'Offset', attributeNames{1:end}};
-
-% Number of folds in the K-fold crossvalidation 
-K = 10;
-CV = cvpartition(N, 'Kfold', K);
-
-% Values of lambda
-lambda_tmp=10.^(-5:8);
-
-% Initialize variables
-T=length(lambda_tmp);
-Error_train = nan(K,1);
-Error_test = nan(K,1);
-w = nan(M,T,K);
-lambda_opt = nan(K,1);
-w_rlr = nan(M,K);
-
-for k=1:K
-    fprintf('Crossvalidation fold %d/%d\n', k, K);
-    % Extract training and test set
-    X_train = X(CV.training(k), :);
-    y_train = y(CV.training(k));
-    X_test = X(CV.test(k), :);
-    y_test = y(CV.test(k));
-
-    Xty = X_train' * y_train;
-    XtX = X_train' * X_train;
-    for t=1:length(lambda_tmp)   
-        % Learn parameter for current value of lambda for the given
-        % inner CV_fold
-        regularization = lambda_tmp(t) * eye(M);
-        regularization(1,1) = 0; % Remove regularization of bias-term
-        w(:,t,k)=(XtX+regularization)\Xty;
-        % Evaluate training and test performance
-        Error_train(t,k) = sum((y_train-X_train*w(:,t,k)).^2);
-        Error_test(t,k) = sum((y_test-X_test*w(:,t,k)).^2);
-    end   
-
-    % Select optimal value of lambda
-    [val,ind_opt]=min(sum(Error_test,2)/sum(CV.TestSize));
-    lambda_opt(k)=lambda_tmp(ind_opt);    
-
-    % Display result for last cross-validation fold (remove if statement to
-    % show all folds)
-    %if k == K
-        mfig(sprintf('Regularized Solution for linear regression',k));    
-        subplot(1,2,1); % Plot error criterion
-        semilogx(lambda_tmp, mean(w(2:end,:,:),3),'.-');
-        % For a more tidy plot, we omit the attribute names, but you can
-        % inspect them using:
-        %legend(attributeNames(2:end), 'location', 'best');
-        xlabel('\lambda');
-        ylabel('Coefficient Values');
-        title('Values of w');
-        subplot(1,2,2); % Plot error        
-        loglog(lambda_tmp,[sum(Error_train,2)/sum(CV.TrainSize) sum(Error_test,2)/sum(CV.TestSize)],'.-');   
-        legend({'Training Error as function of lambda','Test Error as function of lambda'},'Location','SouthEast');
-        title(['Optimal value of lambda: 1e' num2str(log10(lambda_opt(k)))]);
-        xlabel('\lambda');           
-        drawnow;    
-    %end
-    
-    mu(k,  :) = mean(X_train(:,2:end));
-    sigma(k, :) = std(X_train(:,2:end));
-
-    X_train_std = X_train;
-    X_test_std = X_test;
-    X_train_std(:,2:end) = (X_train(:,2:end) - mu(k , :)) ./ sigma(k, :);
-    X_test_std(:,2:end) = (X_test(:,2:end) - mu(k, :)) ./ sigma(k, :);
-
-    % Estimate w for the optimal value of lambda
-    Xty=(X_train_std'*y_train);
-    XtX=X_train_std'*X_train_std;
-
-    regularization = lambda_opt(k) * eye(M);
-    regularization(1,1) = 0; 
-    w_rlr(:,k) = (XtX+regularization)\Xty;
-end
-
-disp('The program is in pause, click the space bar to continue');
-pause;
-
-%% Part b: 2-Level Cross-Validation
-% To run this section firs run the Initializatin section
-X(:, end) = [];
-y = X(:, 1);
-X(:, 1) = [];
-% include an additional attribute corresponding to the offset
-[N, M] = size(X);
-X=[ones(size(X,1),1) X];
-M=M+1;
-attributeNames={'Offset', attributeNames{3:end-1}};
  
 % Crossvalidation
 % Create crossvalidation partition for evaluation of performance of optimal
@@ -230,13 +139,13 @@ for k = 1:K
     Error_train(k) = sum((y_train-X_train_std*w_noreg(:,k)).^2);
     Error_test(k) = sum((y_test-X_test_std*w_noreg(:,k)).^2);
     
-    % Compute squared error without using the input data at all (Baseline)
+    % Compute squared error without using the input data at all
     Error_train_nofeatures(k) = sum((y_train-mean(y_train)).^2);
     Error_test_nofeatures(k) = sum((y_test-mean(y_train)).^2);
      
 end
 
-% Display results
+%% Display results
 fprintf('\n');
 fprintf('Linear regression without feature selection:\n');
 fprintf('- Training error: %8.2f\n', sum(Error_train)/sum(CV.TrainSize));
