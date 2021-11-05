@@ -15,9 +15,13 @@ X(:, 1) = [];
 
 %% Part a: 1
 % include an additional attribute corresponding to the offset
+if (first_time==1)
 [N, M] = size(X);
 X=[ones(size(X,1),1) X];
 M=M+1;
+end
+first_time=0;
+
 attributeNames={'Offset', attributeNames{1:end}};
 
 % Number of folds in the K-fold crossvalidation 
@@ -102,6 +106,7 @@ pause;
 
 %% Part b: 2-Level Cross-Validation
 % To run this section firs run the Initializatin section
+if (first_time==1)
 X(:, end) = [];
 y = X(:, 1);
 X(:, 1) = [];
@@ -109,6 +114,8 @@ X(:, 1) = [];
 [N, M] = size(X);
 X=[ones(size(X,1),1) X];
 M=M+1;
+end
+first_time=0;
 attributeNames={'Offset', attributeNames{3:end-1}};
  
 % Crossvalidation
@@ -255,3 +262,213 @@ for m = 1:M
     disp( sprintf(['\t', attributeNames{m},':\t ', num2str(w_rlr(m,end))]))
 end
 disp(w_rlr(:,end))
+
+%% neural network
+
+% predict length of abalone
+if (first_time==1)
+y=X(:,1);
+X(:, end) = [];
+X(:,1)=[];
+[N, M] = size(X);
+% X=[ones(size(X,1),1) X];
+% M=M+1;
+end
+first_time=0;
+
+attributeNames={'Offset', attributeNames{1:end}};
+
+% K-fold crossvalidation
+K = 10;
+CV = cvpartition(N,'Kfold', K);
+
+% Parameters for neural network classifier
+% NHiddenUnits = 10;  % Number of hidden units
+NHiddenUnits = 15:20;
+T=length(NHiddenUnits);
+NTrain = 1; % Number of re-trains of neural network
+
+% Variable for regression error
+Error_train = nan(K,1);
+Error_test = nan(K,1);
+Error_train_nofeatures = nan(K,1);
+Error_test_nofeatures = nan(K,1);
+bestnet=cell(K,1);
+best_units = nan(K,1);
+
+for k = 1:K % For each crossvalidation fold
+    fprintf('Crossvalidation fold %d/%d\n', k, CV.NumTestSets);
+
+    % Extract training and test set
+    X_train = X(CV.training(k), :);
+    y_train = y(CV.training(k));
+    X_test = X(CV.test(k), :);
+    y_test = y(CV.test(k));
+
+    % Fit neural network to training set
+    MSEBest = inf;
+    for t = 1:T
+        netwrk = nr_main(X_train, y_train, X_test, y_test, NHiddenUnits(t));
+        if netwrk.mse_train(end)<MSEBest, bestnet{k} = netwrk; MSEBest=netwrk.mse_train(end); MSEBest=netwrk.mse_train(end); end
+        best_units(k)=bestnet{k}.Nh;
+    end
+    
+    % Predict model on test and training data    
+    y_train_est = bestnet{k}.t_pred_train;    
+    y_test_est = bestnet{k}.t_pred_test;        
+    
+    % Compute least squares error
+    Error_train(k) = sum((y_train-y_train_est).^2);
+    Error_test(k) = sum((y_test-y_test_est).^2); 
+        
+    % Compute least squares error when predicting output to be mean of
+    % training data
+    Error_train_nofeatures(k) = sum((y_train-mean(y_train)).^2);
+    Error_test_nofeatures(k) = sum((y_test-mean(y_train)).^2);  
+    
+%     [val,ind_opt]=min(sum(Error_test,2)/sum(CV2.TestSize));
+%     best_units(k)=NHiddenUnits(ind_opt);
+end
+
+
+
+% Print the least squares errors
+% Display results
+fprintf('\n');
+fprintf('Neural network regression without feature selection:\n');
+fprintf('- Training error: %8.2f\n', sum(Error_train)/sum(CV.TrainSize));
+fprintf('- Test error:     %8.2f\n', sum(Error_test)/sum(CV.TestSize));
+fprintf('- R^2 train:     %8.2f\n', (sum(Error_train_nofeatures)-sum(Error_train))/sum(Error_train_nofeatures));
+fprintf('- R^2 test:     %8.2f\n', (sum(Error_test_nofeatures)-sum(Error_test))/sum(Error_test_nofeatures));
+
+test_error_real=sum(Error_test)/(sum(CV.TestSize))
+
+% Display the trained network 
+mfig('Trained Network');
+k=1; % cross-validation fold
+displayNetworkRegression(bestnet{k});
+
+% Display how network predicts (only for when there are two attributes)
+if size(X_train,2)==2 % Works only for problems with two attributes
+	mfig('Decision Boundary');
+	displayDecisionFunctionNetworkRegression(X_train, y_train, X_test, y_test, bestnet{k});
+end
+
+
+%% neural network (attempt to 2 level cross validation)
+
+% predict length of abalone
+if (first_time==1)
+X(:, end) = [];
+y=X(:,1);
+X(:,1)=[];
+[N, M] = size(X);
+% X=[ones(size(X,1),1) X];
+% M=M+1;
+end
+first_time=0;
+
+attributeNames={'Offset', attributeNames{1:end}};
+
+% K-fold crossvalidation
+K = 10;
+CV = cvpartition(N,'Kfold', K);
+
+% Parameters for neural network classifier
+%  NHiddenUnits = 1;  % Number of hidden units
+NHiddenUnits = 1:5;
+T=length(NHiddenUnits);
+NTrain = 1; % Number of re-trains of neural network
+
+% Variable for regression error
+Error_train = nan(K,1);
+Error_test = nan(K,1);
+Error_train_nofeatures = nan(K,1);
+Error_test_nofeatures = nan(K,1);
+bestnet=cell(K,1);
+Error_train2 = nan(T,K);
+Error_test2 = nan(T,K);
+best_units = nan(K,1);
+for k = 1:K % For each crossvalidation fold
+    fprintf('Crossvalidation fold %d/%d\n', k, CV.NumTestSets);
+
+    % Extract training and test set
+    X_train = X(CV.training(k), :);
+    y_train = y(CV.training(k));
+    X_test = X(CV.test(k), :);
+    y_test = y(CV.test(k));
+    
+    KK = 5;
+    CV2 = cvpartition(size(X_train,1), 'Kfold', KK);
+    for kk=1:KK
+     
+        X_train2 = X_train(CV2.training(kk), :);
+        y_train2 = y_train(CV2.training(kk));
+        X_test2 = X_train(CV2.test(kk), :);
+        y_test2 = y_train(CV2.test(kk));
+        
+        % Fit neural network to training set
+        MSEBest = inf;
+        for t = 1:T
+            netwrk = nr_main(X_train2, y_train2, X_test2, y_test2, NHiddenUnits(t));
+            if netwrk.mse_train(end)<MSEBest, bestnet{k} = netwrk; MSEBest=netwrk.mse_train(end); end
+        % Evaluate training and test performance
+%         Error_train2(t,kk) = sum((y_train2-X_train2*ones(M,1)).^2);
+%         Error_test2(t,kk) = sum((y_test2-X_test2*ones(M,1)).^2);
+  
+        % Predict model on test and training data
+        y_train_est2 = bestnet{k}.t_pred_train;
+        y_test_est2 = bestnet{k}.t_pred_test;
+        
+        % Compute least squares error
+        Error_train2(t,kk) = sum((y_train2-y_train_est2).^2);
+        Error_test2(t,kk) = sum((y_test2-y_test_est2).^2);
+        end
+    end
+    [val,ind_opt]=min(sum(Error_test2,2)/sum(CV2.TestSize));
+    best_units(k)=NHiddenUnits(ind_opt);
+    
+    if k == K
+         % Plot error
+        loglog(NHiddenUnits,[sum(Error_train2,2)/sum(CV2.TrainSize) sum(Error_test2,2)/sum(CV2.TestSize)],'.-');
+        legend({'Training Error as function of h','Test Error as function of h'},'Location','SouthEast');
+        title(['Optimal value of h: 1e' num2str(best_units(k))]);
+        xlabel('\h');
+        drawnow;
+    end
+    
+    % Predict model on test and training data    
+%     y_train_est = bestnet{k}.t_pred_train;    
+%     y_test_est = bestnet{k}.t_pred_test;        
+    
+    % Compute least squares error
+%     Error_train(k) = sum((y_train-y_train_est).^2);
+%     Error_test(k) = sum((y_test-y_test_est).^2); 
+        
+    % Compute least squares error when predicting output to be mean of
+    % training data
+    Error_train_nofeatures(k) = sum((y_train-mean(y_train)).^2);
+    Error_test_nofeatures(k) = sum((y_test-mean(y_train)).^2);            
+end
+
+% Print the least squares errors
+% Display results
+% fprintf('\n');
+% fprintf('Neural network regression without feature selection:\n');
+% fprintf('- Training error: %8.2f\n', sum(Error_train)/sum(CV.TrainSize));
+% fprintf('- Test error:     %8.2f\n', sum(Error_test)/sum(CV.TestSize));
+% fprintf('- R^2 train:     %8.2f\n', (sum(Error_train_nofeatures)-sum(Error_train))/sum(Error_train_nofeatures));
+% fprintf('- R^2 test:     %8.2f\n', (sum(Error_test_nofeatures)-sum(Error_test))/sum(Error_test_nofeatures));
+
+test_error_real=sum(Error_test2)/sum(CV2.TestSize)
+
+% Display the trained network 
+mfig('Trained Network');
+k=1; % cross-validation fold
+displayNetworkRegression(bestnet{k});
+
+% Display how network predicts (only for when there are two attributes)
+if size(X_train,2)==2 % Works only for problems with two attributes
+	mfig('Decision Boundary');
+	displayDecisionFunctionNetworkRegression(X_train, y_train, X_test, y_test, bestnet{k});
+end

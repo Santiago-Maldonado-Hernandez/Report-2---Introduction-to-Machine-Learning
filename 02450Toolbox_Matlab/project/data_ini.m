@@ -28,3 +28,4 @@ classNames = unique(classLabels);
 %X = bsxfun(@times, X, 1./std(X));
 % Removing the outliers. 
 X = rmoutliers(X);
+first_time=1;
