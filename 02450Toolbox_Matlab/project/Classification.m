@@ -3,13 +3,10 @@ clear all;
 clc;
 data_ini;
 
-%% Regresion
-% The regression problem will predict the length of the abalone based on 
-% other attributes except the ring attribute. Remove the last column that
-% corresponds with that attribute. 
-
-% Set the lenght as the output 'y' that we want to predict and extract it
-% from the data matrix 'X'
+%% Classification
+% The classification problem will predict wheter an abalone has 10 or more
+% rings. We set ring attribute as output 'y' while the rest of the data
+% matrix 'X' is set as input. 
 y = X(:, end);
 X(:, end) = [];
 % The ring attribute goes from 3-17. We will make a binary problem dividing 
@@ -122,6 +119,7 @@ NTrain = 10; % Number of re-trains of neural network
 
 % Variable for classification error
 Error = nan(K,1);
+Error_test_ANN = nan(K,1);
 bestnet = cell(K,1); 
 
 for k = 1:K % For each crossvalidation fold
@@ -145,6 +143,7 @@ for k = 1:K % For each crossvalidation fold
     
     % Compute error rate
     Error(k) = sum(y_test~=y_test_est); % Count the number of errors
+    Error_test_ANN(k) = Error(k)/length(y_test); 
 end
 
 
@@ -163,3 +162,8 @@ if size(X_train,2)==2 % Works only for problems with two attributes
 	mfig('Decision Boundary');
 	displayDecisionFunctionNetworkClassification(X_train, y_train, X_test, y_test, bestnet{k});
 end
+
+%% Table 
+Outer_fold = 1:K;
+varNames = {'Outer fold i', 'E test ANN', 'Lambda opt', 'E test linear regression', 'E test baseline'};
+stats = table(Outer_fold', Error_test_ANN, lambda_opt', Error_test', Error_test_no_features', 'VariableNames', varNames);
