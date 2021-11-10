@@ -26,6 +26,8 @@ C = 2;
 Error_test = zeros(1, K);
 lambda_opt = zeros(1, K);
 Error_test_no_features = zeros(1, K);
+c_cv = cell(K, 1); 
+c_baseline = cell(K, 1);
 
 for kk=1:K
     fprintf('Crossvalidation fold %d/%d\n', kk, K);
@@ -51,6 +53,7 @@ for kk=1:K
     test_error_rate = nan(length(lambda),1);
     train_error_rate = nan(length(lambda),1);
     coefficient_norm = nan(length(lambda),1);
+    y_test_est_aux = zeros(N_test ,length(lambda));
     for k = 1:length(lambda)
         mdl = fitclinear(X_train_std, y_train, ...
                      'Lambda', lambda(k), ...
@@ -60,17 +63,20 @@ for kk=1:K
         train_error_rate(k) = sum( y_train ~= y_train_est ) / length(y_train);
 
         [y_test_est, p] = predict(mdl, X_test_std);
+        y_test_est_aux(:, k) = y_test_est; 
         test_error_rate(k) = sum( y_test ~= y_test_est ) / length(y_test);
 
         coefficient_norm(k) = norm(mdl.Beta,2);
     end
     [min_error,lambda_idx] = min(test_error_rate);
+    c_cv{kk, 1} = y_test ~= y_test_est_aux(:, lambda_idx);
     Error_test(1, kk) = min_error;
     lambda_opt(1, kk) = lambda(lambda_idx);
     
     % Baseline no features
     y_test_est_no_features = ones(length(y_test), 1);
     y_test_est_no_features = y_test_est_no_features*mode(y_test);
+    c_baseline{kk, 1} = y_test ~= y_test_est_no_features; 
     Error_test_no_features(1, kk) = sum( y_test ~= y_test_est_no_features ) / length(y_test);
     
     %%
@@ -121,6 +127,7 @@ NTrain = 10; % Number of re-trains of neural network
 Error = nan(K,1);
 Error_test_ANN = nan(K,1);
 bestnet = cell(K,1); 
+c_ANN = cell(K,1);
 
 for k = 1:K % For each crossvalidation fold
     fprintf('Crossvalidation fold %d/%d\n', k, CV.NumTestSets);
@@ -139,13 +146,16 @@ for k = 1:K % For each crossvalidation fold
     end
     
     % Predict model on test data    
-    y_test_est = bestnet{k}.t_est_test>.5;    
+    y_test_est = bestnet{k}.t_est_test>.5; 
+    c_ANN{k, 1} = y_test~=y_test_est;
     
     % Compute error rate
     Error(k) = sum(y_test~=y_test_est); % Count the number of errors
     Error_test_ANN(k) = Error(k)/length(y_test); 
 end
 
+
+save('classification.mat');     % Save workspace
 
 % Print the error rate
 fprintf('Error rate: %.1f%%\n', sum(Error)./sum(CV.TestSize)*100);
@@ -167,3 +177,99 @@ end
 Outer_fold = 1:K;
 varNames = {'Outer fold i', 'E test ANN', 'Lambda opt', 'E test linear regression', 'E test baseline'};
 stats = table(Outer_fold', Error_test_ANN, lambda_opt', Error_test', Error_test_no_features', 'VariableNames', varNames);
+
+%% Statistical comparison
+% Comapring CV and ANN 
+K = 10;                             % Number of iterations
+n11 = zeros(1, K);
+n12 = zeros(1, K);
+n21 = zeros(1, K);
+n22 = zeros(1, K);
+diff = zeros(1, K);
+Q = zeros(1, K);
+f = zeros(1, K);
+g = zeros(1, K);
+Low_CI = zeros(1, K);
+Upper_CI = zeros(1, K);
+alpha = 0.05;
+p = zeros(1, K);
+for k=1:K
+    n = CV.TestSize(k);
+    n11(1, k) = sum(cell2mat(c_cv(k)).*cell2mat(c_ANN(k)));          % Both classifiers are correct
+    n12(1, k) = sum(cell2mat(c_cv(k)).*(1-cell2mat(c_ANN(k))));      % cv is correct, ANN is wrong
+    n21(1, k) = sum((1-cell2mat(c_cv(k))).*cell2mat(c_ANN(k)));      % cv is wrong, ANN is correct
+    n22(1, k) = sum((1-cell2mat(c_cv(k))).*(1-cell2mat(c_ANN(k))));      % Both are wrong
+    diff(1, k) = (n12(1, k)-n21(1, k))/n;
+    Q(1, k) = (n^2*(n+1)*(diff(1, k)+1)*(1-diff(1, k)))/(n*(n12(1, k)+n21(1, k))-(n12(1, k)-n21(1, k))^2);
+    f(1, k) = (diff(1, k)+1)*(Q(1, k)-1)/2;
+    g(1, k) = (1-diff(1, k))*(Q(1, k)-1)/2;
+    Low_CI(1, k) = 2*betainv(alpha/2, f(1, k), g(1, k))-1;
+    Upper_CI(1, k) = 2*betainv(1-alpha/2, f(1, k), g(1, k))-1;
+    p(1, k) = 2*binocdf(min([n12(k) n21(k)]), n12(k)+n21(k), .5);
+end
+varNames = {'Fold i', 'Low Interval Confidence', 'Up Interval Confidence', 'p'};
+CVvsANN = table(Outer_fold', Low_CI', Upper_CI', p', 'VariableNames', varNames);
+
+%%
+% Comapring CV and baseline 
+K = 10;                             % Number of iterations
+n11 = zeros(1, K);
+n12 = zeros(1, K);
+n21 = zeros(1, K);
+n22 = zeros(1, K);
+diff = zeros(1, K);
+Q = zeros(1, K);
+f = zeros(1, K);
+g = zeros(1, K);
+Low_CI = zeros(1, K);
+Upper_CI = zeros(1, K);
+alpha = 0.05;
+p = zeros(1, K);
+for k=1:K
+    n = CV.TestSize(k);
+    n11(1, k) = sum(cell2mat(c_cv(k)).*cell2mat(c_baseline(k)));          % Both classifiers are correct
+    n12(1, k) = sum(cell2mat(c_cv(k)).*(1-cell2mat(c_baseline(k))));      % cv is correct, ANN is wrong
+    n21(1, k) = sum((1-cell2mat(c_cv(k))).*cell2mat(c_baseline(k)));      % cv is wrong, ANN is correct
+    n22(1, k) = sum((1-cell2mat(c_cv(k))).*(1-cell2mat(c_baseline(k))));      % Both are wrong
+    diff(1, k) = (n12(1, k)-n21(1, k))/n;
+    Q(1, k) = (n^2*(n+1)*(diff(1, k)+1)*(1-diff(1, k)))/(n*(n12(1, k)+n21(1, k))-(n12(1, k)-n21(1, k))^2);
+    f(1, k) = (diff(1, k)+1)*(Q(1, k)-1)/2;
+    g(1, k) = (1-diff(1, k))*(Q(1, k)-1)/2;
+    Low_CI(1, k) = 2*betainv(alpha/2, f(1, k), g(1, k))-1;
+    Upper_CI(1, k) = 2*betainv(1-alpha/2, f(1, k), g(1, k))-1;
+    p(1, k) = 2*binocdf(min([n12(k) n21(k)]), n12(k)+n21(k), .5);
+end
+varNames = {'Fold i', 'Low Interval Confidence', 'Up Interval Confidence', 'p'};
+CVvsBaseline = table(Outer_fold', Low_CI', Upper_CI', p', 'VariableNames', varNames);
+
+%%
+% ANN CV and baseline 
+K = 10;                             % Number of iterations
+n11 = zeros(1, K);
+n12 = zeros(1, K);
+n21 = zeros(1, K);
+n22 = zeros(1, K);
+diff = zeros(1, K);
+Q = zeros(1, K);
+f = zeros(1, K);
+g = zeros(1, K);
+Low_CI = zeros(1, K);
+Upper_CI = zeros(1, K);
+alpha = 0.05;
+p = zeros(1, K);
+for k=1:K
+    n = CV.TestSize(k);
+    n11(1, k) = sum(cell2mat(c_ANN(k)).*cell2mat(c_baseline(k)));          % Both classifiers are correct
+    n12(1, k) = sum(cell2mat(c_ANN(k)).*(1-cell2mat(c_baseline(k))));      % cv is correct, ANN is wrong
+    n21(1, k) = sum((1-cell2mat(c_ANN(k))).*cell2mat(c_baseline(k)));      % cv is wrong, ANN is correct
+    n22(1, k) = sum((1-cell2mat(c_ANN(k))).*(1-cell2mat(c_baseline(k))));      % Both are wrong
+    diff(1, k) = (n12(1, k)-n21(1, k))/n;
+    Q(1, k) = (n^2*(n+1)*(diff(1, k)+1)*(1-diff(1, k)))/(n*(n12(1, k)+n21(1, k))-(n12(1, k)-n21(1, k))^2);
+    f(1, k) = (diff(1, k)+1)*(Q(1, k)-1)/2;
+    g(1, k) = (1-diff(1, k))*(Q(1, k)-1)/2;
+    Low_CI(1, k) = 2*betainv(alpha/2, f(1, k), g(1, k))-1;
+    Upper_CI(1, k) = 2*betainv(1-alpha/2, f(1, k), g(1, k))-1;
+    p(1, k) = 2*binocdf(min([n12(k) n21(k)]), n12(k)+n21(k), .5);
+end
+varNames = {'Fold i', 'Low Interval Confidence', 'Up Interval Confidence', 'p'};
+ANNvsBaseline = table(Outer_fold', Low_CI', Upper_CI', p', 'VariableNames', varNames);
