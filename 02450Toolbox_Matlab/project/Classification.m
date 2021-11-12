@@ -120,12 +120,12 @@ end
 %% ANN
 
 % Parameters for neural network classifier
-NHiddenUnits = 10;  % Number of hidden units
-NTrain = 10; % Number of re-trains of neural network
+NHiddenUnits = 10:20;  % Number of hidden units
 
 % Variable for classification error
 Error = nan(K,1);
 Error_test_ANN = nan(K,1);
+Nh = nan(K,1);
 bestnet = cell(K,1); 
 c_ANN = cell(K,1);
 
@@ -140,9 +140,13 @@ for k = 1:K % For each crossvalidation fold
   
     % Fit neural network to training set
     MSEBest = inf; 
-    for t = 1:NTrain   
-        netwrk = nc_main(X_train, y_train, X_test, y_test, NHiddenUnits);
-        if netwrk.Etrain(end)<MSEBest, bestnet{k} = netwrk; MSEBest=netwrk.Etrain(end); end
+    for t = 1:length(NHiddenUnits)   
+        netwrk = nc_main(X_train, y_train, X_test, y_test, NHiddenUnits(t));
+        if netwrk.Etrain(end)<MSEBest 
+            bestnet{k} = netwrk; 
+            MSEBest=netwrk.Etrain(end); 
+        end
+        Nh(1, k) = bestnet{k}.Nh;
     end
     
     % Predict model on test data    
@@ -153,9 +157,6 @@ for k = 1:K % For each crossvalidation fold
     Error(k) = sum(y_test~=y_test_est); % Count the number of errors
     Error_test_ANN(k) = Error(k)/length(y_test); 
 end
-
-
-save('classification.mat');     % Save workspace
 
 % Print the error rate
 fprintf('Error rate: %.1f%%\n', sum(Error)./sum(CV.TestSize)*100);
@@ -175,8 +176,8 @@ end
 
 %% Table 
 Outer_fold = 1:K;
-varNames = {'Outer fold i', 'E test ANN', 'Lambda opt', 'E test linear regression', 'E test baseline'};
-stats = table(Outer_fold', Error_test_ANN, lambda_opt', Error_test', Error_test_no_features', 'VariableNames', varNames);
+varNames = {'Outer fold i', 'hi', 'E test ANN', 'Lambda opt', 'E test linear regression', 'E test baseline'};
+stats = table(Outer_fold', Nh', Error_test_ANN, lambda_opt', Error_test', Error_test_no_features', 'VariableNames', varNames);
 
 %% Statistical comparison
 % Comapring CV and ANN 
@@ -273,3 +274,5 @@ for k=1:K
 end
 varNames = {'Fold i', 'Low Interval Confidence', 'Up Interval Confidence', 'p'};
 ANNvsBaseline = table(Outer_fold', Low_CI', Upper_CI', p', 'VariableNames', varNames);
+
+save('classification.mat');     % Save workspace
